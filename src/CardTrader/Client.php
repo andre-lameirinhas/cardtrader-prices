@@ -31,6 +31,21 @@ class Client
     }
 
     /**
+     * Live marketplace listings for a single blueprint (a specific card/print),
+     * sorted ascending by price. There is no historical-price endpoint; build
+     * time series by polling this and storing your own snapshots.
+     *
+     * @param array{language?: string, foil?: bool, ct_zero?: bool} $filters
+     * @return list<array<string, mixed>>
+     */
+    public function getMarketplaceListings(int $blueprintId, array $filters = []): array
+    {
+        $response = $this->get('marketplace/products', ['blueprint_id' => $blueprintId, ...$filters]);
+
+        return $response[(string) $blueprintId] ?? [];
+    }
+
+    /**
      * @param array<string, mixed> $options
      * @return array<mixed>
      */

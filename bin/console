@@ -4,7 +4,7 @@
 declare(strict_types=1);
 
 use App\CardTrader\Client;
-use App\Command\GamesCommand;
+use App\Command\PriceStatsCommand;
 use Dotenv\Dotenv;
 use Symfony\Component\Console\Application;
 
@@ -25,6 +25,6 @@ if ($token === '') {
 $client = new Client($baseUri, $token);
 
 $app = new Application('cardtrader-prices', 'dev');
-$app->add(new GamesCommand($client));
+$app->add(new PriceStatsCommand($client));
 $app->setDefaultCommand('list');
 $app->run();
