@@ -1,0 +1,30 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use App\CardTrader\Client;
+use App\Command\GamesCommand;
+use Dotenv\Dotenv;
+use Symfony\Component\Console\Application;
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+$root = dirname(__DIR__);
+if (file_exists($root . '/.env')) {
+    Dotenv::createImmutable($root)->load();
+}
+
+$baseUri = $_ENV['CARDTRADER_API_BASE_URI'] ?? 'https://api.cardtrader.com/api/v2';
+$token = $_ENV['CARDTRADER_API_TOKEN'] ?? '';
+
+if ($token === '') {
+    fwrite(STDERR, "Warning: CARDTRADER_API_TOKEN is not set (see .env.example).\n");
+}
+
+$client = new Client($baseUri, $token);
+
+$app = new Application('cardtrader-prices', 'dev');
+$app->add(new GamesCommand($client));
+$app->setDefaultCommand('list');
+$app->run();
