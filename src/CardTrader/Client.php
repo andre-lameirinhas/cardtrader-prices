@@ -6,6 +6,7 @@ namespace App\CardTrader;
 
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\HandlerStack;
 
 class Client
 {
@@ -14,10 +15,12 @@ class Client
     public function __construct(
         string $baseUri,
         private readonly string $apiToken,
+        ?HandlerStack $handlerStack = null,
     ) {
         $this->http = new HttpClient([
             'base_uri' => rtrim($baseUri, '/') . '/',
             'timeout' => 15,
+            ...($handlerStack !== null ? ['handler' => $handlerStack] : []),
         ]);
     }
 
