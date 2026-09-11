@@ -33,8 +33,8 @@ server-side, so filter the response client-side, e.g. by `game_id === 5` for Pok
 ### Options
 
 ```bash
-bin/console price-stats 111151                  # Base Set Charizard
-bin/console price-stats 111151 --language=en    # only English listings
+bin/console price-stats 111151                  # Base Set Charizard (defaults to English listings)
+bin/console price-stats 111151 -l fr            # only French listings (-l is short for --language)
 ```
 
 ### Output

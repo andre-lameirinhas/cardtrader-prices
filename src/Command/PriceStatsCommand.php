@@ -30,7 +30,7 @@ class PriceStatsCommand extends Command
     {
         $this
             ->addArgument('blueprint-id', InputArgument::REQUIRED, 'CardTrader blueprint ID (a specific card+print)')
-            ->addOption('language', null, InputOption::VALUE_REQUIRED, 'Filter listings by language, e.g. en');
+            ->addOption('language', 'l', InputOption::VALUE_REQUIRED, 'Filter listings by language, e.g. en', 'en');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -38,10 +38,7 @@ class PriceStatsCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $blueprintId = (int) $input->getArgument('blueprint-id');
 
-        $filters = [];
-        if ($input->getOption('language') !== null) {
-            $filters['language'] = $input->getOption('language');
-        }
+        $filters = ['language' => $input->getOption('language')];
 
         try {
             $listings = $this->client->getMarketplaceListings($blueprintId, $filters);
@@ -59,9 +56,7 @@ class PriceStatsCommand extends Command
 
         $io->title($this->cardTitle($listings[0]));
 
-        if ($input->getOption('language') !== null) {
-            $io->text(sprintf('Language: %s', $input->getOption('language')));
-        }
+        $io->text(sprintf('Language: %s', $input->getOption('language')));
 
         foreach ($this->groupByVariant($listings) as $variant => $variantListings) {
             $io->section($variant);
