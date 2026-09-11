@@ -17,25 +17,23 @@ use PHPUnit\Framework\TestCase;
 class ClientTest extends TestCase
 {
     /**
-     * @param list<\GuzzleHttp\Psr7\Response|\Throwable> $responses
-     * @param list<array{request: \Psr\Http\Message\RequestInterface}>|null $history
+     * @param list<Response|\Throwable> $responses
      */
-    private function clientWith(array $responses, ?array &$history = null): Client
+    private function stackFor(array $responses): HandlerStack
     {
-        $mock = new MockHandler($responses);
-        $stack = HandlerStack::create($mock);
+        return HandlerStack::create(new MockHandler($responses));
+    }
 
-        $history = [];
-        $stack->push(Middleware::history($history));
-
-        return new Client('https://api.example.com/v2', 'secret-token', $stack);
+    private function jsonResponse(mixed $data): Response
+    {
+        return new Response(200, [], json_encode($data, JSON_THROW_ON_ERROR));
     }
 
     public function testGetMarketplaceListingsReturnsListingsForBlueprint(): void
     {
-        $client = $this->clientWith([
-            new Response(200, [], json_encode(['111151' => [['id' => 1], ['id' => 2]]])),
-        ]);
+        $client = new Client('https://api.example.com/v2', 'secret-token', $this->stackFor([
+            $this->jsonResponse(['111151' => [['id' => 1], ['id' => 2]]]),
+        ]));
 
         $listings = $client->getMarketplaceListings(111151);
 
@@ -44,9 +42,9 @@ class ClientTest extends TestCase
 
     public function testGetMarketplaceListingsReturnsEmptyArrayWhenBlueprintKeyMissing(): void
     {
-        $client = $this->clientWith([
-            new Response(200, [], json_encode(['999' => [['id' => 1]]])),
-        ]);
+        $client = new Client('https://api.example.com/v2', 'secret-token', $this->stackFor([
+            $this->jsonResponse(['999' => [['id' => 1]]]),
+        ]));
 
         $listings = $client->getMarketplaceListings(111151);
 
@@ -55,10 +53,11 @@ class ClientTest extends TestCase
 
     public function testGetMarketplaceListingsSendsBlueprintIdAndFiltersAsQuery(): void
     {
-        $client = $this->clientWith([
-            new Response(200, [], json_encode(['111151' => []])),
-        ], $history);
+        $stack = $this->stackFor([$this->jsonResponse(['111151' => []])]);
+        $history = [];
+        $stack->push(Middleware::history($history));
 
+        $client = new Client('https://api.example.com/v2', 'secret-token', $stack);
         $client->getMarketplaceListings(111151, ['language' => 'fr']);
 
         $query = $history[0]['request']->getUri()->getQuery();
@@ -72,10 +71,11 @@ class ClientTest extends TestCase
 
     public function testRequestSendsAuthorizationAndAcceptHeaders(): void
     {
-        $client = $this->clientWith([
-            new Response(200, [], json_encode(['111151' => []])),
-        ], $history);
+        $stack = $this->stackFor([$this->jsonResponse(['111151' => []])]);
+        $history = [];
+        $stack->push(Middleware::history($history));
 
+        $client = new Client('https://api.example.com/v2', 'secret-token', $stack);
         $client->getMarketplaceListings(111151);
 
         $request = $history[0]['request'];
@@ -85,9 +85,9 @@ class ClientTest extends TestCase
 
     public function testRequestWrapsTransportFailuresInCardTraderException(): void
     {
-        $client = $this->clientWith([
+        $client = new Client('https://api.example.com/v2', 'secret-token', $this->stackFor([
             new ConnectException('Connection refused', new Request('GET', 'marketplace/products')),
-        ]);
+        ]));
 
         $this->expectException(CardTraderException::class);
         $this->expectExceptionMessageMatches('/CardTrader API request failed/');
@@ -97,9 +97,9 @@ class ClientTest extends TestCase
 
     public function testRequestThrowsOnInvalidJsonResponse(): void
     {
-        $client = $this->clientWith([
+        $client = new Client('https://api.example.com/v2', 'secret-token', $this->stackFor([
             new Response(200, [], 'not json'),
-        ]);
+        ]));
 
         $this->expectException(CardTraderException::class);
         $this->expectExceptionMessageMatches('/Failed to decode CardTrader API response/');
@@ -109,9 +109,9 @@ class ClientTest extends TestCase
 
     public function testRequestReturnsEmptyArrayForEmptyBody(): void
     {
-        $client = $this->clientWith([
+        $client = new Client('https://api.example.com/v2', 'secret-token', $this->stackFor([
             new Response(200, [], 'null'),
-        ]);
+        ]));
 
         $this->assertSame([], $client->get('marketplace/products'));
     }

@@ -11,6 +11,8 @@
         "vlucas/phpdotenv": "^5.6"
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.95",
+        "phpstan/phpstan": "^2.2",
         "phpunit/phpunit": "^11.3"
     },
     "autoload": {
@@ -27,6 +29,14 @@
         "sort-packages": true
     },
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "lint": "php-cs-fixer fix --dry-run --diff",
+        "lint:fix": "php-cs-fixer fix",
+        "stan": "phpstan analyse",
+        "check": [
+            "@lint",
+            "@stan",
+            "@test"
+        ]
     }
 }

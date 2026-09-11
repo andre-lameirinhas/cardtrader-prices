@@ -58,7 +58,16 @@ Regular
 ## Tests
 
 ```bash
-vendor/bin/phpunit
+composer test
+```
+
+## Linting & static analysis
+
+```bash
+composer lint      # PHP-CS-Fixer, dry-run with diff
+composer lint:fix  # PHP-CS-Fixer, applies fixes
+composer stan       # PHPStan (level 8)
+composer check      # lint + stan + test
 ```
 
 ## Status / limitations
