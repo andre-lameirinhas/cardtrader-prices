@@ -59,6 +59,10 @@ class PriceStatsCommand extends Command
 
         $io->title($this->cardTitle($listings[0]));
 
+        if ($input->getOption('language') !== null) {
+            $io->text(sprintf('Language: %s', $input->getOption('language')));
+        }
+
         foreach ($this->groupByVariant($listings) as $variant => $variantListings) {
             $io->section($variant);
             foreach ($this->groupByCurrency($variantListings) as $currency => $currencyListings) {
