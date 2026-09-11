@@ -70,9 +70,7 @@ class PriceStatsCommand extends Command
 
         foreach ($this->groupByVariant($listings) as $variant => $variantListings) {
             $io->section($variant);
-            foreach ($this->groupByCurrency($variantListings) as $currency => $currencyListings) {
-                $io->table(['Condition', 'Count', 'Min', 'Max', 'Avg', 'Median'], $this->buildRows($currencyListings, $currency));
-            }
+            $io->table(['Condition', 'Count', 'Min', 'Max', 'Avg', 'Median'], $this->buildRows($variantListings));
         }
 
         return Command::SUCCESS;
@@ -112,24 +110,12 @@ class PriceStatsCommand extends Command
 
     /**
      * @param list<array<string, mixed>> $listings
-     * @return array<string, list<array<string, mixed>>>
-     */
-    private function groupByCurrency(array $listings): array
-    {
-        $groups = [];
-        foreach ($listings as $listing) {
-            $groups[$listing['price_currency'] ?? '?'][] = $listing;
-        }
-
-        return $groups;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $listings
      * @return list<list<string>>
      */
-    private function buildRows(array $listings, string $currency): array
+    private function buildRows(array $listings): array
     {
+        $currency = $listings[0]['price_currency'] ?? '?';
+
         $byCondition = [];
         foreach ($listings as $listing) {
             $condition = $listing['properties_hash']['condition'] ?? 'Unknown';
