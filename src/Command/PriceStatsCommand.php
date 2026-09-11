@@ -18,6 +18,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'price-stats', description: 'Price stats (min/max/avg/median) from live marketplace listings for a blueprint, grouped by condition')]
 class PriceStatsCommand extends Command
 {
+    /** @var list<string> */
+    private const CONDITION_ORDER = ['Mint', 'Near Mint', 'Slightly Played', 'Moderately Played', 'Played', 'Poor'];
+
     public function __construct(private readonly Client $client)
     {
         parent::__construct();
@@ -28,8 +31,7 @@ class PriceStatsCommand extends Command
         $this
             ->addArgument('blueprint-id', InputArgument::REQUIRED, 'CardTrader blueprint ID (a specific card+print)')
             ->addOption('language', null, InputOption::VALUE_REQUIRED, 'Filter listings by language, e.g. en')
-            ->addOption('foil', null, InputOption::VALUE_NONE, 'Only foil listings')
-            ->addOption('ct-zero', null, InputOption::VALUE_NONE, 'Only CT Zero / hub seller listings');
+            ->addOption('reverse-holo', null, InputOption::VALUE_NONE, 'Only reverse holo listings');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -41,12 +43,6 @@ class PriceStatsCommand extends Command
         if ($input->getOption('language') !== null) {
             $filters['language'] = $input->getOption('language');
         }
-        if ($input->getOption('foil')) {
-            $filters['foil'] = true;
-        }
-        if ($input->getOption('ct-zero')) {
-            $filters['ct_zero'] = true;
-        }
 
         try {
             $listings = $this->client->getMarketplaceListings($blueprintId, $filters);
@@ -56,18 +52,61 @@ class PriceStatsCommand extends Command
             return Command::FAILURE;
         }
 
+        if ($input->getOption('reverse-holo')) {
+            $listings = array_values(array_filter(
+                $listings,
+                static fn (array $l) => ($l['properties_hash']['pokemon_reverse'] ?? false) === true,
+            ));
+        }
+
         if ($listings === []) {
             $io->warning('No listings found for this blueprint (with the given filters).');
 
             return Command::SUCCESS;
         }
 
-        foreach ($this->groupByCurrency($listings) as $currency => $currencyListings) {
-            $io->section(sprintf('%s (%d listings)', $currency, count($currencyListings)));
-            $io->table(['Condition', 'Count', 'Min', 'Max', 'Avg', 'Median'], $this->buildRows($currencyListings, $currency));
+        $io->title($this->cardTitle($listings[0]));
+
+        foreach ($this->groupByVariant($listings) as $variant => $variantListings) {
+            $io->section($variant);
+            foreach ($this->groupByCurrency($variantListings) as $currency => $currencyListings) {
+                $io->table(['Condition', 'Count', 'Min', 'Max', 'Avg', 'Median'], $this->buildRows($currencyListings, $currency));
+            }
         }
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * @param array<string, mixed> $listing
+     */
+    private function cardTitle(array $listing): string
+    {
+        $name = $listing['name_en'] ?? '?';
+        $number = $listing['properties_hash']['collector_number'] ?? null;
+        $set = $listing['expansion']['name_en'] ?? '?';
+        $rarity = $listing['properties_hash']['pokemon_rarity'] ?? null;
+
+        $title = $number !== null
+            ? sprintf('%s (#%s) — %s', $name, $number, $set)
+            : sprintf('%s — %s', $name, $set);
+
+        return $rarity !== null ? sprintf('%s [%s]', $title, $rarity) : $title;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $listings
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private function groupByVariant(array $listings): array
+    {
+        $groups = [];
+        foreach ($listings as $listing) {
+            $reverseHolo = ($listing['properties_hash']['pokemon_reverse'] ?? false) === true;
+            $groups[$reverseHolo ? 'Reverse Holo' : 'Regular'][] = $listing;
+        }
+
+        return $groups;
     }
 
     /**
@@ -96,9 +135,12 @@ class PriceStatsCommand extends Command
             $byCondition[$condition][] = $listing['price_cents'];
         }
 
+        $extraConditions = array_diff(array_keys($byCondition), self::CONDITION_ORDER);
+        $orderedConditions = [...self::CONDITION_ORDER, ...$extraConditions];
+
         $rows = [];
-        foreach ($byCondition as $condition => $cents) {
-            $rows[] = $this->statsRow($condition, $cents, $currency);
+        foreach ($orderedConditions as $condition) {
+            $rows[] = $this->statsRow($condition, $byCondition[$condition] ?? [], $currency);
         }
 
         $allCents = array_map(static fn (array $l) => $l['price_cents'], $listings);
