@@ -19,7 +19,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 class PriceStatsCommand extends Command
 {
     /** @var list<string> */
-    private const CONDITION_ORDER = ['Mint', 'Near Mint', 'Slightly Played', 'Moderately Played', 'Played', 'Poor'];
+    private const CONDITION_ORDER = ['Near Mint', 'Slightly Played', 'Moderately Played', 'Played', 'Poor'];
+
+    /** @var list<string> */
+    private const VALID_LANGUAGES = ['de', 'en', 'es', 'fr', 'it', 'jp', 'pt'];
 
     public function __construct(private readonly Client $client)
     {
@@ -38,7 +41,14 @@ class PriceStatsCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $blueprintId = (int) $input->getArgument('blueprint-id');
 
-        $filters = ['language' => $input->getOption('language')];
+        $language = (string) $input->getOption('language');
+        if (!in_array($language, self::VALID_LANGUAGES, true)) {
+            $io->error(sprintf('Invalid language "%s". Valid languages: %s', $language, implode(', ', self::VALID_LANGUAGES)));
+
+            return Command::FAILURE;
+        }
+
+        $filters = ['language' => $language];
 
         try {
             $listings = $this->client->getMarketplaceListings($blueprintId, $filters);
@@ -56,7 +66,7 @@ class PriceStatsCommand extends Command
 
         $io->title($this->cardTitle($listings[0]));
 
-        $io->text(sprintf('Language: %s', $input->getOption('language')));
+        $io->text(sprintf('Language: %s', $language));
 
         foreach ($this->groupByVariant($listings) as $variant => $variantListings) {
             $io->section($variant);

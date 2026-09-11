@@ -40,8 +40,8 @@ bin/console price-stats 111151 -l fr            # only French listings (-l is sh
 ### Output
 
 For each variant present (Regular / Reverse Holo — a single blueprint can list both), a table of
-count/min/max/avg/median grouped by condition, always in Mint → Poor order with a zero row for any
-missing condition, and an `ALL` row last:
+count/min/max/avg/median grouped by condition, always in Near Mint → Poor order with a zero row for
+any missing condition, and an `ALL` row last:
 
 ```
 Milotic (#012/101) — EX Hidden Legends [Holo Rare]
@@ -49,7 +49,6 @@ Milotic (#012/101) — EX Hidden Legends [Holo Rare]
 Regular
 -------
  Condition           Count   Min        Max         Avg         Median
- Mint                0       -          -           -           -
  Near Mint           1       80.54 EUR  80.54 EUR   80.54 EUR   80.54 EUR
  Slightly Played     10      10.36 EUR  97.19 EUR   41.80 EUR   24.40 EUR
  ...
