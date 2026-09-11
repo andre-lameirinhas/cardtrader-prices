@@ -43,7 +43,7 @@ class PriceStatsCommand extends Command
 
         $language = (string) $input->getOption('language');
         if (!in_array($language, self::VALID_LANGUAGES, true)) {
-            $io->error(sprintf('Invalid language "%s". Valid languages: %s', $language, implode(', ', self::VALID_LANGUAGES)));
+            $io->error("Invalid language \"{$language}\". Valid languages: " . implode(', ', self::VALID_LANGUAGES));
 
             return Command::FAILURE;
         }
@@ -66,7 +66,7 @@ class PriceStatsCommand extends Command
 
         $io->title($this->cardTitle($listings[0]));
 
-        $io->text(sprintf('Language: %s', $language));
+        $io->text("Language: {$language}");
 
         foreach ($this->groupByVariant($listings) as $variant => $variantListings) {
             $io->section($variant);
@@ -87,10 +87,10 @@ class PriceStatsCommand extends Command
         $rarity = $listing['properties_hash']['pokemon_rarity'] ?? null;
 
         $title = $number !== null
-            ? sprintf('%s (#%s) — %s', $name, $number, $set)
-            : sprintf('%s — %s', $name, $set);
+            ? "{$name} (#{$number}) — {$set}"
+            : "{$name} — {$set}";
 
-        return $rarity !== null ? sprintf('%s [%s]', $title, $rarity) : $title;
+        return $rarity !== null ? "{$title} [{$rarity}]" : $title;
     }
 
     /**
