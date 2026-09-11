@@ -35,11 +35,7 @@ server-side, so filter the response client-side, e.g. by `game_id === 5` for Pok
 ```bash
 bin/console price-stats 111151                  # Base Set Charizard
 bin/console price-stats 111151 --language=en    # only English listings
-bin/console price-stats 116199 --reverse-holo   # only reverse holo listings
 ```
-
-`--reverse-holo` is filtered client-side — CardTrader ignores it as a query parameter, unlike
-`--language` which the API does filter server-side.
 
 ### Output
 

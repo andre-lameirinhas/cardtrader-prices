@@ -30,8 +30,7 @@ class PriceStatsCommand extends Command
     {
         $this
             ->addArgument('blueprint-id', InputArgument::REQUIRED, 'CardTrader blueprint ID (a specific card+print)')
-            ->addOption('language', null, InputOption::VALUE_REQUIRED, 'Filter listings by language, e.g. en')
-            ->addOption('reverse-holo', null, InputOption::VALUE_NONE, 'Only reverse holo listings');
+            ->addOption('language', null, InputOption::VALUE_REQUIRED, 'Filter listings by language, e.g. en');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -50,13 +49,6 @@ class PriceStatsCommand extends Command
             $io->error($e->getMessage());
 
             return Command::FAILURE;
-        }
-
-        if ($input->getOption('reverse-holo')) {
-            $listings = array_values(array_filter(
-                $listings,
-                static fn (array $l) => ($l['properties_hash']['pokemon_reverse'] ?? false) === true,
-            ));
         }
 
         if ($listings === []) {
