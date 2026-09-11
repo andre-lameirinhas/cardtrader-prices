@@ -63,7 +63,7 @@ class Client
             $response = $this->http->request($method, ltrim($path, '/'), $options);
         } catch (GuzzleException $e) {
             throw new CardTraderException(
-                sprintf('CardTrader API request failed [%s %s]: %s', $method, $path, $e->getMessage()),
+                "CardTrader API request failed [{$method} {$path}]: {$e->getMessage()}",
                 previous: $e,
             );
         }
