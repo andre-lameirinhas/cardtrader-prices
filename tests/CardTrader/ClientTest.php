@@ -69,6 +69,33 @@ class ClientTest extends TestCase
         ], $params);
     }
 
+    public function testGetBlueprintsUsesExportEndpointWithExpansionId(): void
+    {
+        $stack = $this->stackFor([$this->jsonResponse([['id' => 342228]])]);
+        $history = [];
+        $stack->push(Middleware::history($history));
+
+        $client = new Client('https://api.example.com/v2', 'secret-token', $stack);
+        $blueprints = $client->getBlueprints(4195);
+
+        $uri = $history[0]['request']->getUri();
+        $this->assertSame('/v2/blueprints/export', $uri->getPath());
+        $this->assertSame('expansion_id=4195', $uri->getQuery());
+        $this->assertSame([['id' => 342228]], $blueprints);
+    }
+
+    public function testGetExpansionsHitsExpansionsEndpoint(): void
+    {
+        $stack = $this->stackFor([$this->jsonResponse([['id' => 4195, 'code' => 'blk']])]);
+        $history = [];
+        $stack->push(Middleware::history($history));
+
+        $client = new Client('https://api.example.com/v2', 'secret-token', $stack);
+
+        $this->assertSame([['id' => 4195, 'code' => 'blk']], $client->getExpansions());
+        $this->assertSame('/v2/expansions', $history[0]['request']->getUri()->getPath());
+    }
+
     public function testRequestSendsAuthorizationAndAcceptHeaders(): void
     {
         $stack = $this->stackFor([$this->jsonResponse(['111151' => []])]);

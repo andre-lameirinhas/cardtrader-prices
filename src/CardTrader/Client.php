@@ -49,6 +49,31 @@ class Client
     }
 
     /**
+     * All expansions across every game. The API ignores a `game_id` filter
+     * server-side, so filter the result client-side.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getExpansions(): array
+    {
+        /** @var list<array<string, mixed>> */
+        return $this->get('expansions');
+    }
+
+    /**
+     * Every blueprint (singles and sealed product) of an expansion, in one call.
+     * Uses `blueprints/export` because plain `blueprints` is paginated (50 per
+     * page by default) and silently truncates larger sets.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getBlueprints(int $expansionId): array
+    {
+        /** @var list<array<string, mixed>> */
+        return $this->get('blueprints/export', ['expansion_id' => $expansionId]);
+    }
+
+    /**
      * @param array<string, mixed> $options
      * @return array<mixed>
      */

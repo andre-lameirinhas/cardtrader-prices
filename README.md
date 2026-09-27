@@ -17,18 +17,37 @@ cp .env.example .env
 bin/console price-stats <blueprint-id>
 ```
 
-A blueprint ID identifies a specific card+print (e.g. Base Set Charizard). You can look one up
-via the raw API, e.g. to find cards by name within an expansion:
+A blueprint ID identifies a specific card+print (e.g. Base Set Charizard). Finding one takes two steps.
 
-```bash
-TOKEN=$(grep CARDTRADER_API_TOKEN .env | cut -d= -f2)
-curl -s -H "Authorization: Bearer $TOKEN" \
-  "https://api.cardtrader.com/api/v2/blueprints?expansion_id=1472" \
-  | php -r '$d=json_decode(stream_get_contents(STDIN),true); foreach($d as $b) if(stripos($b["name"],"charizard")!==false) echo $b["id"]." ".$b["name"]."\n";'
-```
+1. Find the expansion (set) ID by searching on part of its name or code (case and spaces ignored):
 
-(Expansion IDs come from `GET /expansions` — note the API ignores the `game_id` query filter
-server-side, so filter the response client-side, e.g. by `game_id === 5` for Pokémon.)
+   ```bash
+   bin/console expansions "black bolt"
+   ```
+
+   ```
+    ID     Code      Name
+    4188   sv11b     Black Bolt | sv11B
+    4195   blk       Black Bolt
+    4223   m-sv11b   Black Bolt | sv11B - Master Ball Reverse Holo
+    4263   m-blk     Black Bolt - Master Ball Reverse Holo
+    4266   p-blk     Black Bolt - Poké Ball Reverse Holo
+    4406   p-sv11b   Black Bolt | sv11B - Poké Ball Reverse Holo
+   ```
+
+   A single set can have several expansions (e.g. Japanese release, reverse-holo variants), each
+   with its own blueprints.
+
+2. List that expansion's blueprints, sorted by collector number:
+
+   ```bash
+   bin/console blueprints 4195          # singles only
+   bin/console blueprints 4195 --all    # also sealed product / accessories
+   ```
+
+Under the hood: `GET /expansions` (Pokémon is `game_id` 5; the API ignores the `game_id` query
+filter, so it's filtered client-side) and `GET /blueprints/export?expansion_id=<id>`. Plain
+`GET /blueprints` is paginated (50 per page) and silently truncates larger sets.
 
 ### Options
 
