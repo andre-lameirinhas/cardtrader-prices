@@ -49,6 +49,27 @@ Under the hood: `GET /expansions` (Pokémon is `game_id` 5; the API ignores the 
 filter, so it's filtered client-side) and `GET /blueprints/export?expansion_id=<id>`. Plain
 `GET /blueprints` is paginated (50 per page) and silently truncates larger sets.
 
+### Mapping card files to blueprints
+
+Given a folder of `*.card.json` files (each with `id`, `number` like `"001/086"`, `name` and a
+`variants[]` list of `{id, type}`), `map-cards` matches every card and variant to a CardTrader blueprint
+by collector number:
+
+```bash
+bin/console map-cards ~/Downloads/black-bolt 4195 --number 1       # just one card (leading zeros optional), JSON to stdout
+bin/console map-cards ~/Downloads/black-bolt 4195 -o black-bolt-map.json
+```
+
+| Variant type | Blueprint |
+|---|---|
+| Normal, Normal Holo | main expansion, `reverse: false` |
+| Reverse Holo | same blueprint, `reverse: true` (the `pokemon_reverse` listing property) |
+| Poké Ball / Master Ball Reverse Holo | the `"<set> - Poké Ball Reverse Holo"` / `"<set> - Master Ball Reverse Holo"` expansion |
+| anything else (promos, stamps, Prize Pack…) | unmatched, with a `reason` |
+
+The JSON goes to stdout (or `-o`). The summary, any name-mismatch warnings, and the table of
+unmatched variants go to stderr.
+
 ### Options
 
 ```bash
