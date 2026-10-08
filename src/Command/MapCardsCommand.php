@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Card\Card;
+use App\Card\CardFileReader;
 use App\CardTrader\CardTraderException;
 use App\CardTrader\Client;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -24,8 +26,10 @@ class MapCardsCommand extends Command
     /** Variant types that live in a sibling expansion named "<main name> - <type>". */
     private const SIBLING_TYPES = ['Poké Ball Reverse Holo', 'Master Ball Reverse Holo'];
 
-    public function __construct(private readonly Client $client)
-    {
+    public function __construct(
+        private readonly Client $client,
+        private readonly CardFileReader $cardReader = new CardFileReader(),
+    ) {
         parent::__construct();
     }
 
@@ -96,30 +100,29 @@ class MapCardsCommand extends Command
         $matchedCount = 0;
 
         foreach ($cards as $card) {
-            $number = self::collectorNumber($card);
+            $number = $card->collectorNumber();
             $base = $blueprints['main'][$number] ?? null;
 
-            if ($base !== null && strcasecmp((string) $base['name'], (string) $card['name']) !== 0) {
-                $io->warning("#{$number}: local name \"{$card['name']}\" differs from CardTrader \"{$base['name']}\" (blueprint {$base['id']}).");
+            if ($base !== null && strcasecmp((string) $base['name'], $card->name) !== 0) {
+                $io->warning("#{$number}: local name \"{$card->name}\" differs from CardTrader \"{$base['name']}\" (blueprint {$base['id']}).");
             }
 
             $variants = [];
-            foreach ($card['variants'] ?? [] as $variant) {
-                $type = (string) $variant['type'];
-                $result = $this->mapVariant($type, $number, $base, $blueprints, $expansions);
-                $variants[] = ['variant_id' => (string) $variant['id'], 'type' => $type, ...$result];
+            foreach ($card->variants as $variant) {
+                $result = $this->mapVariant($variant->type, $number, $base, $blueprints, $expansions);
+                $variants[] = ['variant_id' => $variant->id, 'type' => $variant->type, ...$result];
 
                 if ($result['blueprint_id'] === null) {
-                    $unmatched[] = [(string) $card['number'], (string) $card['name'], (string) $variant['id'], $type, $result['reason']];
+                    $unmatched[] = [$card->number, $card->name, $variant->id, $variant->type, $result['reason']];
                 } else {
                     ++$matchedCount;
                 }
             }
 
             $mapping[] = [
-                'card_id' => (string) $card['id'],
-                'number' => (string) $card['number'],
-                'name' => (string) $card['name'],
+                'card_id' => $card->id,
+                'number' => $card->number,
+                'name' => $card->name,
                 'blueprint_id' => $base['id'] ?? null,
                 'variants' => $variants,
             ];
@@ -241,24 +244,20 @@ class MapCardsCommand extends Command
 
     /**
      * @param list<string> $numbers
-     * @return list<array<string, mixed>>
+     * @return list<Card>
      */
     private function loadCards(string $dir, array $numbers, SymfonyStyle $io): array
     {
-        $files = glob("{$dir}/*.card.json") ?: [];
-        sort($files);
+        $all = $this->cardReader->readDirectory(
+            $dir,
+            static fn (string $file) => $io->warning('Skipping unreadable card file ' . basename($file)),
+        );
 
         $wanted = array_map(self::withoutLeadingZeros(...), $numbers);
         $cards = [];
         $found = [];
-        foreach ($files as $file) {
-            $card = json_decode((string) file_get_contents($file), true);
-            if (!is_array($card) || !isset($card['id'], $card['number'], $card['name'])) {
-                $io->warning('Skipping unreadable card file ' . basename($file));
-                continue;
-            }
-
-            $number = self::withoutLeadingZeros(self::collectorNumber($card));
+        foreach ($all as $card) {
+            $number = self::withoutLeadingZeros($card->collectorNumber());
             if ($wanted === [] || in_array($number, $wanted, true)) {
                 $cards[] = $card;
                 $found[$number] = true;
@@ -272,16 +271,6 @@ class MapCardsCommand extends Command
         }
 
         return $cards;
-    }
-
-    /**
-     * "001/086" → "001".
-     *
-     * @param array<string, mixed> $card
-     */
-    private static function collectorNumber(array $card): string
-    {
-        return explode('/', (string) $card['number'])[0];
     }
 
     /**

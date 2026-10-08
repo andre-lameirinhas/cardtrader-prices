@@ -209,6 +209,17 @@ class MapCardsCommandTest extends TestCase
         $this->assertStringContainsString('No "Poké Ball Reverse Holo" expansion found', $stderr);
     }
 
+    public function testSkipsUnreadableCardFiles(): void
+    {
+        file_put_contents("{$this->dir}/050.050-086.card.json", '{not json');
+
+        [$mapping, $stderr, $exitCode] = $this->execute($this->client());
+
+        $this->assertSame(Command::SUCCESS, $exitCode);
+        $this->assertSame(['001/086', '087/086'], array_column($mapping, 'number'));
+        $this->assertStringContainsString('Skipping unreadable card file 050.050-086.card.json', $stderr);
+    }
+
     public function testWarnsOnNameMismatch(): void
     {
         $this->writeCard('001.001-086.card.json', '49946', '001/086', 'Snivyy', ['95805' => 'Normal']);
