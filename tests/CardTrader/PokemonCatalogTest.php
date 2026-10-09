@@ -30,7 +30,9 @@ class PokemonCatalogTest extends TestCase
             ['id' => 331810, 'category_id' => 68, 'fixed_properties' => []],
             self::single(342228, '001'),
             self::single(342359, '087'),
+            self::single(342360, '087'),
             self::single(999999, null),
+            self::single(888888, ''),
         ]);
 
         return new PokemonCatalog($client);
@@ -51,20 +53,21 @@ class PokemonCatalogTest extends TestCase
 
     public function testBlueprintsReturnsEverything(): void
     {
-        $this->assertSame([331810, 342228, 342359, 999999], array_column($this->catalogWithBlueprints()->blueprints(4195), 'id'));
+        $this->assertSame([331810, 342228, 342359, 342360, 999999, 888888], array_column($this->catalogWithBlueprints()->blueprints(4195), 'id'));
     }
 
     public function testSinglesDropsSealedProduct(): void
     {
-        $this->assertSame([342228, 342359, 999999], array_column($this->catalogWithBlueprints()->singles(4195), 'id'));
+        $this->assertSame([342228, 342359, 342360, 999999, 888888], array_column($this->catalogWithBlueprints()->singles(4195), 'id'));
     }
 
-    public function testSinglesByNumberIsKeyedByCollectorNumberAndSkipsSinglesWithoutOne(): void
+    public function testSinglesByNumberGroupsByCollectorNumberAndSkipsSinglesWithoutOne(): void
     {
         $singles = $this->catalogWithBlueprints()->singlesByNumber(4195);
 
         $this->assertSame(['001', '087'], array_keys($singles));
-        $this->assertSame(342228, $singles['001']['id']);
+        $this->assertSame([342228], array_column($singles['001'], 'id'));
+        $this->assertSame([342359, 342360], array_column($singles['087'], 'id'));
     }
 
     public function testClientErrorsPropagate(): void

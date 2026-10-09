@@ -221,6 +221,27 @@ class MapCardsCommandTest extends TestCase
         $this->assertStringContainsString('Skipping unreadable card file 050.050-086.card.json', $stderr);
     }
 
+    public function testSharedCollectorNumberLeavesVariantsUnmatched(): void
+    {
+        $client = $this->createMock(Client::class);
+        $client->method('getExpansions')->willReturn([['id' => 4195, 'game_id' => 5, 'name' => 'Black Bolt']]);
+        $client->method('getBlueprints')->willReturn([
+            self::single(342228, '001', 'Snivy', reversible: true),
+            self::single(365943, '001', 'Snivy', reversible: true),
+            self::single(342359, '087', 'Snivy'),
+        ]);
+
+        [$mapping, $stderr] = $this->execute($client);
+
+        $this->assertNull($mapping[0]['blueprint_id']);
+        $this->assertSame(
+            'collector number shared by blueprints 342228, 365943 in expansion 4195',
+            self::variant($mapping[0], '95805')['reason'],
+        );
+        $this->assertSame(342359, self::variant($mapping[1], '95999')['blueprint_id']);
+        $this->assertStringContainsString('#001: collector number shared by blueprints 342228, 365943', $stderr);
+    }
+
     public function testWarnsOnNameMismatch(): void
     {
         $this->writeCard('001.001-086.card.json', '49946', '001/086', 'Snivyy', ['95805' => 'Normal']);

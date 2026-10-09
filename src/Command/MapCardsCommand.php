@@ -74,9 +74,19 @@ class MapCardsCommand extends Command
                 return Command::FAILURE;
             }
 
+            // $blueprints: the one single per collector number; $ambiguous: numbers shared by several singles.
             $blueprints = [];
+            $ambiguous = [];
             foreach ($expansions as $key => $expansionId) {
-                $blueprints[$key] = $expansionId === null ? [] : $this->catalog->singlesByNumber($expansionId);
+                $blueprints[$key] = [];
+                $ambiguous[$key] = [];
+                foreach ($expansionId === null ? [] : $this->catalog->singlesByNumber($expansionId) as $number => $group) {
+                    if (count($group) === 1) {
+                        $blueprints[$key][$number] = $group[0];
+                    } else {
+                        $ambiguous[$key][$number] = array_map(static fn (array $b) => (int) $b['id'], $group);
+                    }
+                }
             }
         } catch (CardTraderException $e) {
             $io->error($e->getMessage());
@@ -98,13 +108,19 @@ class MapCardsCommand extends Command
             $number = $card->collectorNumber();
             $base = $blueprints['main'][$number] ?? null;
 
+            foreach ($ambiguous as $key => $shared) {
+                if (isset($shared[$number])) {
+                    $io->warning("#{$number}: " . self::sharedBy($shared[$number], (int) $expansions[$key]) . '; those variants are left unmatched.');
+                }
+            }
+
             if ($base !== null && strcasecmp((string) $base['name'], $card->name) !== 0) {
                 $io->warning("#{$number}: local name \"{$card->name}\" differs from CardTrader \"{$base['name']}\" (blueprint {$base['id']}).");
             }
 
             $variants = [];
             foreach ($card->variants as $variant) {
-                $result = $this->mapVariant($variant->type, $number, $base, $blueprints, $expansions);
+                $result = $this->mapVariant($variant->type, $number, $base, $blueprints, $ambiguous, $expansions);
                 $variants[] = ['variant_id' => $variant->id, 'type' => $variant->type, ...$result];
 
                 if ($result['blueprint_id'] === null) {
@@ -149,18 +165,21 @@ class MapCardsCommand extends Command
 
     /**
      * @param array<string, array<string, array<string, mixed>>> $blueprints
+     * @param array<string, array<string, list<int>>> $ambiguous
      * @param array<string, int|null> $expansions
      * @param array<string, mixed>|null $base
      * @return array{blueprint_id: int, expansion_id: int, reverse: bool}|array{blueprint_id: null, reason: string}
      */
-    private function mapVariant(string $type, string $number, ?array $base, array $blueprints, array $expansions): array
+    private function mapVariant(string $type, string $number, ?array $base, array $blueprints, array $ambiguous, array $expansions): array
     {
         if (in_array($type, self::SIBLING_TYPES, true)) {
             $blueprint = $blueprints[$type][$number] ?? null;
             if ($blueprint === null) {
-                return ['blueprint_id' => null, 'reason' => $expansions[$type] === null
-                    ? "no {$type} expansion"
-                    : "#{$number} not in expansion {$expansions[$type]}"];
+                return ['blueprint_id' => null, 'reason' => match (true) {
+                    $expansions[$type] === null => "no {$type} expansion",
+                    isset($ambiguous[$type][$number]) => self::sharedBy($ambiguous[$type][$number], $expansions[$type]),
+                    default => "#{$number} not in expansion {$expansions[$type]}",
+                }];
             }
 
             return ['blueprint_id' => (int) $blueprint['id'], 'expansion_id' => (int) $expansions[$type], 'reverse' => false];
@@ -177,7 +196,9 @@ class MapCardsCommand extends Command
         }
 
         if ($base === null) {
-            return ['blueprint_id' => null, 'reason' => "#{$number} not in expansion {$expansions['main']}"];
+            return ['blueprint_id' => null, 'reason' => isset($ambiguous['main'][$number])
+                ? self::sharedBy($ambiguous['main'][$number], (int) $expansions['main'])
+                : "#{$number} not in expansion {$expansions['main']}"];
         }
 
         if ($reverse && !self::supportsReverse($base)) {
@@ -245,6 +266,14 @@ class MapCardsCommand extends Command
         }
 
         return $cards;
+    }
+
+    /**
+     * @param list<int> $blueprintIds
+     */
+    private static function sharedBy(array $blueprintIds, int $expansionId): string
+    {
+        return 'collector number shared by blueprints ' . implode(', ', $blueprintIds) . " in expansion {$expansionId}";
     }
 
     /**

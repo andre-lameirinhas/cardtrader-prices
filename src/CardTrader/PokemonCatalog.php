@@ -51,17 +51,18 @@ class PokemonCatalog
     }
 
     /**
-     * Singles keyed by collector number (e.g. "001"); singles without one are skipped.
+     * Singles grouped by collector number (e.g. "001"). Promo, deck and calendar sets often give several
+     * singles the same number, so each group is a list. Singles without a number (missing or "") are skipped.
      *
-     * @return array<string, array<string, mixed>>
+     * @return array<string, non-empty-list<array<string, mixed>>>
      */
     public function singlesByNumber(int $expansionId): array
     {
         $indexed = [];
         foreach ($this->singles($expansionId) as $single) {
-            $number = $single['fixed_properties']['collector_number'] ?? null;
-            if ($number !== null) {
-                $indexed[(string) $number] = $single;
+            $number = (string) ($single['fixed_properties']['collector_number'] ?? '');
+            if ($number !== '') {
+                $indexed[$number][] = $single;
             }
         }
 
