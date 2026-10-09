@@ -7,7 +7,7 @@ namespace App\Command;
 use App\Card\Card;
 use App\Card\CardFileReader;
 use App\CardTrader\CardTraderException;
-use App\CardTrader\Client;
+use App\CardTrader\PokemonCatalog;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -20,14 +20,11 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'map-cards', description: 'Map a folder of *.card.json files (and their variants) to CardTrader blueprint IDs')]
 class MapCardsCommand extends Command
 {
-    private const POKEMON_GAME_ID = 5;
-    private const SINGLES_CATEGORY_ID = 73;
-
     /** Variant types that live in a sibling expansion named "<main name> - <type>". */
     private const SIBLING_TYPES = ['Poké Ball Reverse Holo', 'Master Ball Reverse Holo'];
 
     public function __construct(
-        private readonly Client $client,
+        private readonly PokemonCatalog $catalog,
         private readonly CardFileReader $cardReader = new CardFileReader(),
     ) {
         parent::__construct();
@@ -47,14 +44,12 @@ class MapCardsCommand extends Command
         // JSON may go to stdout, so all human-readable output goes to stderr.
         $io = new SymfonyStyle($input, $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output);
         $dir = rtrim((string) $input->getArgument('dir'), '/');
-        $rawId = trim((string) $input->getArgument('expansion-id'));
         /** @var list<string> $numbers */
         $numbers = $input->getOption('number');
         $outputPath = $input->getOption('output');
 
-        if (!ctype_digit($rawId)) {
-            $io->error("Invalid expansion ID \"{$rawId}\". Look it up with: bin/console expansions <name>");
-
+        $mainExpansionId = ExpansionIdArgument::parse((string) $input->getArgument('expansion-id'), $io);
+        if ($mainExpansionId === null) {
             return Command::FAILURE;
         }
 
@@ -72,16 +67,16 @@ class MapCardsCommand extends Command
         }
 
         try {
-            $expansions = $this->resolveExpansions((int) $rawId);
+            $expansions = $this->resolveExpansions($mainExpansionId);
             if ($expansions === null) {
-                $io->error("Unknown Pokémon expansion ID {$rawId}.");
+                $io->error("Unknown Pokémon expansion ID {$mainExpansionId}.");
 
                 return Command::FAILURE;
             }
 
             $blueprints = [];
             foreach ($expansions as $key => $expansionId) {
-                $blueprints[$key] = $expansionId === null ? [] : $this->singlesByNumber($expansionId);
+                $blueprints[$key] = $expansionId === null ? [] : $this->catalog->singlesByNumber($expansionId);
             }
         } catch (CardTraderException $e) {
             $io->error($e->getMessage());
@@ -200,14 +195,9 @@ class MapCardsCommand extends Command
      */
     private function resolveExpansions(int $mainId): ?array
     {
-        $pokemon = array_filter(
-            $this->client->getExpansions(),
-            static fn (array $e) => ($e['game_id'] ?? null) === self::POKEMON_GAME_ID,
-        );
-
         $byName = [];
         $mainName = null;
-        foreach ($pokemon as $expansion) {
+        foreach ($this->catalog->expansions() as $expansion) {
             $byName[(string) $expansion['name']] = (int) $expansion['id'];
             if ((int) $expansion['id'] === $mainId) {
                 $mainName = (string) $expansion['name'];
@@ -224,22 +214,6 @@ class MapCardsCommand extends Command
         }
 
         return $resolved;
-    }
-
-    /**
-     * @return array<string, array<string, mixed>>
-     */
-    private function singlesByNumber(int $expansionId): array
-    {
-        $indexed = [];
-        foreach ($this->client->getBlueprints($expansionId) as $blueprint) {
-            $number = $blueprint['fixed_properties']['collector_number'] ?? null;
-            if (($blueprint['category_id'] ?? null) === self::SINGLES_CATEGORY_ID && $number !== null) {
-                $indexed[(string) $number] = $blueprint;
-            }
-        }
-
-        return $indexed;
     }
 
     /**

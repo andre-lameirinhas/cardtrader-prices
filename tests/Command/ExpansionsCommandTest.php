@@ -6,6 +6,7 @@ namespace App\Tests\Command;
 
 use App\CardTrader\CardTraderException;
 use App\CardTrader\Client;
+use App\CardTrader\PokemonCatalog;
 use App\Command\ExpansionsCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
@@ -31,7 +32,7 @@ class ExpansionsCommandTest extends TestCase
             $client->method('getExpansions')->willReturn(self::EXPANSIONS);
         }
 
-        $tester = new CommandTester(new ExpansionsCommand($client));
+        $tester = new CommandTester(new ExpansionsCommand(new PokemonCatalog($client)));
         $exitCode = $tester->execute(['query' => $query]);
 
         return [$tester->getDisplay(), $exitCode];

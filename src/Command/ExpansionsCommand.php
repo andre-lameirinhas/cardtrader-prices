@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\CardTrader\CardTraderException;
-use App\CardTrader\Client;
+use App\CardTrader\PokemonCatalog;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -16,9 +16,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'expansions', description: 'Search Pokémon expansions (sets) by name or code to find their IDs')]
 class ExpansionsCommand extends Command
 {
-    private const POKEMON_GAME_ID = 5;
-
-    public function __construct(private readonly Client $client)
+    public function __construct(private readonly PokemonCatalog $catalog)
     {
         parent::__construct();
     }
@@ -35,7 +33,7 @@ class ExpansionsCommand extends Command
         $needle = self::normalize($query);
 
         try {
-            $expansions = $this->client->getExpansions();
+            $expansions = $this->catalog->expansions();
         } catch (CardTraderException $e) {
             $io->error($e->getMessage());
 
@@ -44,8 +42,7 @@ class ExpansionsCommand extends Command
 
         $matches = array_values(array_filter(
             $expansions,
-            static fn (array $e) => ($e['game_id'] ?? null) === self::POKEMON_GAME_ID
-                && $needle !== ''
+            static fn (array $e) => $needle !== ''
                 && (str_contains(self::normalize((string) $e['name']), $needle)
                     || str_contains(self::normalize((string) $e['code']), $needle)),
         ));

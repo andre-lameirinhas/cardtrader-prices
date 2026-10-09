@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\CardTrader\CardTraderException;
-use App\CardTrader\Client;
+use App\CardTrader\PokemonCatalog;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -17,9 +17,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'blueprints', description: 'List the blueprints (card+print IDs) of a Pokémon set')]
 class BlueprintsCommand extends Command
 {
-    private const SINGLES_CATEGORY_ID = 73;
-
-    public function __construct(private readonly Client $client)
+    public function __construct(private readonly PokemonCatalog $catalog)
     {
         parent::__construct();
     }
@@ -34,30 +32,21 @@ class BlueprintsCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $rawId = trim((string) $input->getArgument('expansion-id'));
         $includeAll = (bool) $input->getOption('all');
 
-        if (!ctype_digit($rawId)) {
-            $io->error("Invalid expansion ID \"{$rawId}\". Look it up with: bin/console expansions <name>");
-
+        $expansionId = ExpansionIdArgument::parse((string) $input->getArgument('expansion-id'), $io);
+        if ($expansionId === null) {
             return Command::FAILURE;
         }
 
-        $expansionId = (int) $rawId;
-
         try {
-            $blueprints = $this->client->getBlueprints($expansionId);
+            $blueprints = $includeAll
+                ? $this->catalog->blueprints($expansionId)
+                : $this->catalog->singles($expansionId);
         } catch (CardTraderException $e) {
             $io->error($e->getMessage());
 
             return Command::FAILURE;
-        }
-
-        if (!$includeAll) {
-            $blueprints = array_values(array_filter(
-                $blueprints,
-                static fn (array $b) => ($b['category_id'] ?? null) === self::SINGLES_CATEGORY_ID,
-            ));
         }
 
         usort($blueprints, static function (array $a, array $b): int {

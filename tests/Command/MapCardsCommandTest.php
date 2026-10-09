@@ -6,6 +6,7 @@ namespace App\Tests\Command;
 
 use App\CardTrader\CardTraderException;
 use App\CardTrader\Client;
+use App\CardTrader\PokemonCatalog;
 use App\Command\MapCardsCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
@@ -106,7 +107,7 @@ class MapCardsCommandTest extends TestCase
      */
     private function execute(Client $client, array $input = []): array
     {
-        $tester = new CommandTester(new MapCardsCommand($client));
+        $tester = new CommandTester(new MapCardsCommand(new PokemonCatalog($client)));
         $exitCode = $tester->execute(['dir' => $this->dir, 'expansion-id' => '4195', ...$input], ['capture_stderr_separately' => true]);
 
         /** @var list<array<string, mixed>> $mapping */

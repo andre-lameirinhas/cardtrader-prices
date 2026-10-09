@@ -6,6 +6,7 @@ namespace App\Tests\Command;
 
 use App\CardTrader\CardTraderException;
 use App\CardTrader\Client;
+use App\CardTrader\PokemonCatalog;
 use App\Command\BlueprintsCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
@@ -57,7 +58,7 @@ class BlueprintsCommandTest extends TestCase
      */
     private function execute(Client $client, array $input): array
     {
-        $tester = new CommandTester(new BlueprintsCommand($client));
+        $tester = new CommandTester(new BlueprintsCommand(new PokemonCatalog($client)));
         $exitCode = $tester->execute($input);
 
         return [$tester->getDisplay(), $exitCode];
