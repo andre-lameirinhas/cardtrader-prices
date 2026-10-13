@@ -7,6 +7,7 @@ namespace App\Command;
 use App\CardTrader\CardTraderException;
 use App\CardTrader\Client;
 use App\CardTrader\Listing;
+use App\CardTrader\ListingStats;
 use App\CardTrader\PriceStats;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -19,9 +20,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'price-stats', description: 'Price stats (min/max/avg/median) from live marketplace listings for a blueprint, grouped by condition')]
 class PriceStatsCommand extends Command
 {
-    /** @var list<string> */
-    private const CONDITION_ORDER = ['Near Mint', 'Slightly Played', 'Moderately Played', 'Played', 'Poor'];
-
     /** @var list<string> */
     private const VALID_LANGUAGES = ['de', 'en', 'es', 'fr', 'it', 'jp', 'pt'];
 
@@ -69,7 +67,7 @@ class PriceStatsCommand extends Command
 
         $io->text("Language: {$language}");
 
-        foreach ($this->groupByVariant($listings) as $variant => $variantListings) {
+        foreach (ListingStats::groupByVariant($listings) as $variant => $variantListings) {
             $io->section($variant);
             $io->table(['Condition', 'Count', 'Min', 'Max', 'Avg', 'Median'], $this->buildRows($variantListings));
         }
@@ -89,53 +87,25 @@ class PriceStatsCommand extends Command
 
     /**
      * @param list<Listing> $listings
-     * @return array<string, list<Listing>>
-     */
-    private function groupByVariant(array $listings): array
-    {
-        $groups = [];
-        foreach ($listings as $listing) {
-            $groups[$listing->reverseHolo ? 'Reverse Holo' : 'Regular'][] = $listing;
-        }
-
-        return $groups;
-    }
-
-    /**
-     * @param list<Listing> $listings
      * @return list<list<string>>
      */
     private function buildRows(array $listings): array
     {
         $currency = $listings[0]->priceCurrency;
 
-        $byCondition = [];
-        foreach ($listings as $listing) {
-            $byCondition[$listing->condition][] = $listing->priceCents;
-        }
-
-        $extraConditions = array_diff(array_keys($byCondition), self::CONDITION_ORDER);
-        $orderedConditions = [...self::CONDITION_ORDER, ...$extraConditions];
-
         $rows = [];
-        foreach ($orderedConditions as $condition) {
-            $rows[] = $this->statsRow($condition, $byCondition[$condition] ?? [], $currency);
+        foreach (ListingStats::byCondition($listings) as $label => $stats) {
+            $rows[] = $this->statsRow($label, $stats, $currency);
         }
-
-        $allCents = array_map(static fn (Listing $l) => $l->priceCents, $listings);
-        $rows[] = $this->statsRow('ALL', $allCents, $currency);
 
         return $rows;
     }
 
     /**
-     * @param list<int> $cents
      * @return list<string>
      */
-    private function statsRow(string $label, array $cents, string $currency): array
+    private function statsRow(string $label, PriceStats $stats, string $currency): array
     {
-        $stats = PriceStats::fromCents($cents);
-
         return [
             $label,
             (string) $stats->count,
