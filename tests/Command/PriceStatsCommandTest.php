@@ -6,6 +6,7 @@ namespace App\Tests\Command;
 
 use App\CardTrader\CardTraderException;
 use App\CardTrader\Client;
+use App\CardTrader\Listing;
 use App\Command\PriceStatsCommand;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
@@ -18,24 +19,17 @@ class PriceStatsCommandTest extends TestCase
         return new CommandTester(new PriceStatsCommand($client));
     }
 
-    /**
-     * @param array<string, mixed> $overrides
-     * @return array<string, mixed>
-     */
-    private static function listing(array $overrides = []): array
-    {
-        return array_merge([
-            'name_en' => 'Milotic',
-            'expansion' => ['name_en' => 'EX Hidden Legends'],
-            'properties_hash' => [
-                'collector_number' => '012/101',
-                'pokemon_rarity' => 'Holo Rare',
-                'pokemon_reverse' => false,
-                'condition' => 'Near Mint',
-            ],
-            'price_cents' => 1000,
-            'price_currency' => 'EUR',
-        ], $overrides);
+    private static function listing(
+        int $priceCents = 1000,
+        string $priceCurrency = 'EUR',
+        string $nameEn = 'Milotic',
+        ?string $collectorNumber = '012/101',
+        ?string $expansionNameEn = 'EX Hidden Legends',
+        ?string $rarity = 'Holo Rare',
+        bool $reverseHolo = false,
+        string $condition = 'Near Mint',
+    ): Listing {
+        return new Listing($priceCents, $priceCurrency, $nameEn, $collectorNumber, $expansionNameEn, $rarity, $reverseHolo, $condition);
     }
 
     public function testRejectsInvalidLanguage(): void
@@ -119,12 +113,7 @@ class PriceStatsCommandTest extends TestCase
     {
         $client = $this->createMock(Client::class);
         $client->method('getMarketplaceListings')->willReturn([
-            self::listing([
-                'properties_hash' => [
-                    'condition' => 'Near Mint',
-                    'pokemon_reverse' => false,
-                ],
-            ]),
+            self::listing(collectorNumber: null, rarity: null),
         ]);
 
         $tester = $this->tester($client);
@@ -140,16 +129,8 @@ class PriceStatsCommandTest extends TestCase
     {
         $client = $this->createMock(Client::class);
         $client->method('getMarketplaceListings')->willReturn([
-            self::listing(['price_cents' => 1000]),
-            self::listing([
-                'price_cents' => 2000,
-                'properties_hash' => [
-                    'collector_number' => '012/101',
-                    'pokemon_rarity' => 'Holo Rare',
-                    'pokemon_reverse' => true,
-                    'condition' => 'Near Mint',
-                ],
-            ]),
+            self::listing(priceCents: 1000),
+            self::listing(priceCents: 2000, reverseHolo: true),
         ]);
 
         $tester = $this->tester($client);
@@ -164,18 +145,8 @@ class PriceStatsCommandTest extends TestCase
     {
         $client = $this->createMock(Client::class);
         $client->method('getMarketplaceListings')->willReturn([
-            self::listing(['price_cents' => 1000, 'properties_hash' => [
-                'collector_number' => '012/101',
-                'pokemon_rarity' => 'Holo Rare',
-                'pokemon_reverse' => false,
-                'condition' => 'Played',
-            ]]),
-            self::listing(['price_cents' => 2000, 'properties_hash' => [
-                'collector_number' => '012/101',
-                'pokemon_rarity' => 'Holo Rare',
-                'pokemon_reverse' => false,
-                'condition' => 'Near Mint',
-            ]]),
+            self::listing(priceCents: 1000, condition: 'Played'),
+            self::listing(priceCents: 2000, condition: 'Near Mint'),
         ]);
 
         $tester = $this->tester($client);
@@ -201,12 +172,7 @@ class PriceStatsCommandTest extends TestCase
     {
         $client = $this->createMock(Client::class);
         $client->method('getMarketplaceListings')->willReturn([
-            self::listing(['properties_hash' => [
-                'collector_number' => '012/101',
-                'pokemon_rarity' => 'Holo Rare',
-                'pokemon_reverse' => false,
-                'condition' => 'Damaged',
-            ]]),
+            self::listing(condition: 'Damaged'),
         ]);
 
         $tester = $this->tester($client);
@@ -224,7 +190,7 @@ class PriceStatsCommandTest extends TestCase
     {
         $client = $this->createMock(Client::class);
         $client->method('getMarketplaceListings')->willReturn([
-            self::listing(['price_cents' => 8054, 'price_currency' => 'EUR']),
+            self::listing(priceCents: 8054, priceCurrency: 'EUR'),
         ]);
 
         $tester = $this->tester($client);

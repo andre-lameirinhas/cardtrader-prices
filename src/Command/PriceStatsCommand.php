@@ -6,6 +6,7 @@ namespace App\Command;
 
 use App\CardTrader\CardTraderException;
 use App\CardTrader\Client;
+use App\CardTrader\Listing;
 use App\CardTrader\PriceStats;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -76,50 +77,41 @@ class PriceStatsCommand extends Command
         return Command::SUCCESS;
     }
 
-    /**
-     * @param array<string, mixed> $listing
-     */
-    private function cardTitle(array $listing): string
+    private function cardTitle(Listing $listing): string
     {
-        $name = $listing['name_en'] ?? '?';
-        $number = $listing['properties_hash']['collector_number'] ?? null;
-        $set = $listing['expansion']['name_en'] ?? '?';
-        $rarity = $listing['properties_hash']['pokemon_rarity'] ?? null;
+        $set = $listing->expansionNameEn ?? '?';
+        $title = $listing->collectorNumber !== null
+            ? "{$listing->nameEn} (#{$listing->collectorNumber}) — {$set}"
+            : "{$listing->nameEn} — {$set}";
 
-        $title = $number !== null
-            ? "{$name} (#{$number}) — {$set}"
-            : "{$name} — {$set}";
-
-        return $rarity !== null ? "{$title} [{$rarity}]" : $title;
+        return $listing->rarity !== null ? "{$title} [{$listing->rarity}]" : $title;
     }
 
     /**
-     * @param list<array<string, mixed>> $listings
-     * @return array<string, list<array<string, mixed>>>
+     * @param list<Listing> $listings
+     * @return array<string, list<Listing>>
      */
     private function groupByVariant(array $listings): array
     {
         $groups = [];
         foreach ($listings as $listing) {
-            $reverseHolo = ($listing['properties_hash']['pokemon_reverse'] ?? false) === true;
-            $groups[$reverseHolo ? 'Reverse Holo' : 'Regular'][] = $listing;
+            $groups[$listing->reverseHolo ? 'Reverse Holo' : 'Regular'][] = $listing;
         }
 
         return $groups;
     }
 
     /**
-     * @param list<array<string, mixed>> $listings
+     * @param list<Listing> $listings
      * @return list<list<string>>
      */
     private function buildRows(array $listings): array
     {
-        $currency = $listings[0]['price_currency'] ?? '?';
+        $currency = $listings[0]->priceCurrency;
 
         $byCondition = [];
         foreach ($listings as $listing) {
-            $condition = $listing['properties_hash']['condition'] ?? 'Unknown';
-            $byCondition[$condition][] = $listing['price_cents'];
+            $byCondition[$listing->condition][] = $listing->priceCents;
         }
 
         $extraConditions = array_diff(array_keys($byCondition), self::CONDITION_ORDER);
@@ -130,7 +122,7 @@ class PriceStatsCommand extends Command
             $rows[] = $this->statsRow($condition, $byCondition[$condition] ?? [], $currency);
         }
 
-        $allCents = array_map(static fn (array $l) => $l['price_cents'], $listings);
+        $allCents = array_map(static fn (Listing $l) => $l->priceCents, $listings);
         $rows[] = $this->statsRow('ALL', $allCents, $currency);
 
         return $rows;

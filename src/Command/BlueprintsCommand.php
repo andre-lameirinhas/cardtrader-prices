@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\CardTrader\Blueprint;
 use App\CardTrader\CardTraderException;
 use App\CardTrader\PokemonCatalog;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -49,15 +50,13 @@ class BlueprintsCommand extends Command
             return Command::FAILURE;
         }
 
-        usort($blueprints, static function (array $a, array $b): int {
+        usort($blueprints, static function (Blueprint $a, Blueprint $b): int {
             // Singles (with a collector number) first, in natural order; everything else by name.
-            $numA = $a['fixed_properties']['collector_number'] ?? null;
-            $numB = $b['fixed_properties']['collector_number'] ?? null;
-            if ($numA === null || $numB === null) {
-                return [$numA === null, $a['name'] ?? ''] <=> [$numB === null, $b['name'] ?? ''];
+            if ($a->collectorNumber === null || $b->collectorNumber === null) {
+                return [$a->collectorNumber === null, $a->name] <=> [$b->collectorNumber === null, $b->name];
             }
 
-            return strnatcmp((string) $numA, (string) $numB);
+            return strnatcmp($a->collectorNumber, $b->collectorNumber);
         });
 
         $io->title("Expansion #{$expansionId} — " . count($blueprints) . ' blueprints');
@@ -68,11 +67,11 @@ class BlueprintsCommand extends Command
             return Command::SUCCESS;
         }
 
-        $io->table(['ID', '#', 'Name', 'Rarity'], array_map(static fn (array $b) => [
-            (string) $b['id'],
-            (string) ($b['fixed_properties']['collector_number'] ?? ''),
-            (string) ($b['name'] ?? ''),
-            (string) ($b['fixed_properties']['pokemon_rarity'] ?? ''),
+        $io->table(['ID', '#', 'Name', 'Rarity'], array_map(static fn (Blueprint $b) => [
+            (string) $b->id,
+            $b->collectorNumber ?? '',
+            $b->name,
+            $b->rarity ?? '',
         ], $blueprints));
 
         return Command::SUCCESS;

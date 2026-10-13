@@ -6,6 +6,7 @@ namespace App\Tests\CardTrader;
 
 use App\CardTrader\CardTraderException;
 use App\CardTrader\Client;
+use App\CardTrader\Listing;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -32,12 +33,15 @@ class ClientTest extends TestCase
     public function testGetMarketplaceListingsReturnsListingsForBlueprint(): void
     {
         $client = new Client('https://api.example.com/v2', 'secret-token', $this->stackFor([
-            $this->jsonResponse(['111151' => [['id' => 1], ['id' => 2]]]),
+            $this->jsonResponse(['111151' => [
+                ['price_cents' => 500, 'name_en' => 'Snivy'],
+                ['price_cents' => 700, 'name_en' => 'Snivy'],
+            ]]),
         ]));
 
         $listings = $client->getMarketplaceListings(111151);
 
-        $this->assertSame([['id' => 1], ['id' => 2]], $listings);
+        $this->assertSame([500, 700], array_map(static fn (Listing $l) => $l->priceCents, $listings));
     }
 
     public function testGetMarketplaceListingsReturnsEmptyArrayWhenBlueprintKeyMissing(): void

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\CardTrader;
 
+use App\CardTrader\Blueprint;
 use App\CardTrader\CardTraderException;
 use App\CardTrader\Client;
+use App\CardTrader\Expansion;
 use App\CardTrader\PokemonCatalog;
 use PHPUnit\Framework\TestCase;
 
@@ -48,17 +50,17 @@ class PokemonCatalogTest extends TestCase
             ['id' => 4266, 'game_id' => 5, 'name' => 'Black Bolt - Poké Ball Reverse Holo'],
         ]);
 
-        $this->assertSame([4195, 4266], array_column((new PokemonCatalog($client))->expansions(), 'id'));
+        $this->assertSame([4195, 4266], array_map(static fn (Expansion $e) => $e->id, (new PokemonCatalog($client))->expansions()));
     }
 
     public function testBlueprintsReturnsEverything(): void
     {
-        $this->assertSame([331810, 342228, 342359, 342360, 999999, 888888], array_column($this->catalogWithBlueprints()->blueprints(4195), 'id'));
+        $this->assertSame([331810, 342228, 342359, 342360, 999999, 888888], self::ids($this->catalogWithBlueprints()->blueprints(4195)));
     }
 
     public function testSinglesDropsSealedProduct(): void
     {
-        $this->assertSame([342228, 342359, 342360, 999999, 888888], array_column($this->catalogWithBlueprints()->singles(4195), 'id'));
+        $this->assertSame([342228, 342359, 342360, 999999, 888888], self::ids($this->catalogWithBlueprints()->singles(4195)));
     }
 
     public function testSinglesByNumberGroupsByCollectorNumberAndSkipsSinglesWithoutOne(): void
@@ -66,8 +68,17 @@ class PokemonCatalogTest extends TestCase
         $singles = $this->catalogWithBlueprints()->singlesByNumber(4195);
 
         $this->assertSame(['001', '087'], array_keys($singles));
-        $this->assertSame([342228], array_column($singles['001'], 'id'));
-        $this->assertSame([342359, 342360], array_column($singles['087'], 'id'));
+        $this->assertSame([342228], self::ids($singles['001']));
+        $this->assertSame([342359, 342360], self::ids($singles['087']));
+    }
+
+    /**
+     * @param list<Blueprint> $blueprints
+     * @return list<int>
+     */
+    private static function ids(array $blueprints): array
+    {
+        return array_map(static fn (Blueprint $b) => $b->id, $blueprints);
     }
 
     /**

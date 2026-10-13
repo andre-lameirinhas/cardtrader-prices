@@ -22,50 +22,49 @@ class PokemonCatalog
     /**
      * Pokémon expansions only. The API ignores a `game_id` filter server-side, so this filters client-side.
      *
-     * @return list<array<string, mixed>>
+     * @return list<Expansion>
      */
     public function expansions(): array
     {
         return array_values(array_filter(
-            $this->client->getExpansions(),
-            static fn (array $e) => ($e['game_id'] ?? null) === self::GAME_ID,
+            array_map(Expansion::fromArray(...), $this->client->getExpansions()),
+            static fn (Expansion $e) => $e->gameId === self::GAME_ID,
         ));
     }
 
     /**
      * Every blueprint of an expansion: singles, sealed product and accessories.
      *
-     * @return list<array<string, mixed>>
+     * @return list<Blueprint>
      */
     public function blueprints(int $expansionId): array
     {
-        return $this->client->getBlueprints($expansionId);
+        return array_map(Blueprint::fromArray(...), $this->client->getBlueprints($expansionId));
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<Blueprint>
      */
     public function singles(int $expansionId): array
     {
         return array_values(array_filter(
             $this->blueprints($expansionId),
-            static fn (array $b) => ($b['category_id'] ?? null) === self::SINGLES_CATEGORY_ID,
+            static fn (Blueprint $b) => $b->categoryId === self::SINGLES_CATEGORY_ID,
         ));
     }
 
     /**
      * Singles grouped by collector number (e.g. "001"). Promo, deck and calendar sets often give several
-     * singles the same number, so each group is a list. Singles without a number (missing or "") are skipped.
+     * singles the same number, so each group is a list. Singles without a number are skipped.
      *
-     * @return array<string, non-empty-list<array<string, mixed>>>
+     * @return array<string, non-empty-list<Blueprint>>
      */
     public function singlesByNumber(int $expansionId): array
     {
         $indexed = [];
         foreach ($this->singles($expansionId) as $single) {
-            $number = (string) ($single['fixed_properties']['collector_number'] ?? '');
-            if ($number !== '') {
-                $indexed[$number][] = $single;
+            if ($single->collectorNumber !== null) {
+                $indexed[$single->collectorNumber][] = $single;
             }
         }
 
@@ -84,9 +83,9 @@ class PokemonCatalog
         $byName = [];
         $mainName = null;
         foreach ($this->expansions() as $expansion) {
-            $byName[(string) $expansion['name']] = (int) $expansion['id'];
-            if ((int) $expansion['id'] === $mainId) {
-                $mainName = (string) $expansion['name'];
+            $byName[$expansion->name] = $expansion->id;
+            if ($expansion->id === $mainId) {
+                $mainName = $expansion->name;
             }
         }
 

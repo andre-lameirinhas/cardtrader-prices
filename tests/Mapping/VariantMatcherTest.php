@@ -6,22 +6,20 @@ namespace App\Tests\Mapping;
 
 use App\Card\Card;
 use App\Card\CardVariant;
+use App\CardTrader\Blueprint;
 use App\Mapping\VariantMatcher;
 use PHPUnit\Framework\TestCase;
 
 class VariantMatcherTest extends TestCase
 {
-    /**
-     * @return array<string, mixed>
-     */
-    private static function single(int $id, string $number, string $name = 'Snivy', bool $reversible = false): array
+    private static function single(int $id, string $number, string $name = 'Snivy', bool $reversible = false): Blueprint
     {
-        return [
+        return Blueprint::fromArray([
             'id' => $id,
             'name' => $name,
             'fixed_properties' => ['collector_number' => $number],
             'editable_properties' => $reversible ? [['name' => 'pokemon_reverse']] : [],
-        ];
+        ]);
     }
 
     private static function card(string $number, string ...$variantTypes): Card
@@ -36,7 +34,7 @@ class VariantMatcherTest extends TestCase
 
     /**
      * @param array<string, int|null> $expansions
-     * @param array<string, array<string, non-empty-list<array<string, mixed>>>> $singlesByNumber
+     * @param array<string, array<string, non-empty-list<Blueprint>>> $singlesByNumber
      */
     private static function matcher(array $expansions, array $singlesByNumber): VariantMatcher
     {

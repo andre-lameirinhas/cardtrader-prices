@@ -39,13 +39,16 @@ class Client
      * time series by polling this and storing your own snapshots.
      *
      * @param array{language?: string, foil?: bool, ct_zero?: bool} $filters
-     * @return list<array<string, mixed>>
+     * @return list<Listing>
      */
     public function getMarketplaceListings(int $blueprintId, array $filters = []): array
     {
         $response = $this->get('marketplace/products', ['blueprint_id' => $blueprintId, ...$filters]);
 
-        return $response[(string) $blueprintId] ?? [];
+        /** @var list<array<string, mixed>> $listings */
+        $listings = $response[(string) $blueprintId] ?? [];
+
+        return array_map(Listing::fromArray(...), $listings);
     }
 
     /**

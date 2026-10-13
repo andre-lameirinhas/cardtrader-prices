@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\CardTrader\CardTraderException;
+use App\CardTrader\Expansion;
 use App\CardTrader\PokemonCatalog;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -42,9 +43,9 @@ class ExpansionsCommand extends Command
 
         $matches = array_values(array_filter(
             $expansions,
-            static fn (array $e) => $needle !== ''
-                && (str_contains(self::normalize((string) $e['name']), $needle)
-                    || str_contains(self::normalize((string) $e['code']), $needle)),
+            static fn (Expansion $e) => $needle !== ''
+                && (str_contains(self::normalize($e->name), $needle)
+                    || str_contains(self::normalize($e->code), $needle)),
         ));
 
         if ($matches === []) {
@@ -53,10 +54,10 @@ class ExpansionsCommand extends Command
             return Command::SUCCESS;
         }
 
-        usort($matches, static fn (array $a, array $b) => $a['id'] <=> $b['id']);
+        usort($matches, static fn (Expansion $a, Expansion $b) => $a->id <=> $b->id);
 
         $io->table(['ID', 'Code', 'Name'], array_map(
-            static fn (array $e) => [(string) $e['id'], (string) $e['code'], (string) $e['name']],
+            static fn (Expansion $e) => [(string) $e->id, $e->code, $e->name],
             $matches,
         ));
 
