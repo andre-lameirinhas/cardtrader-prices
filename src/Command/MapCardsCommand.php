@@ -8,6 +8,7 @@ use App\Card\Card;
 use App\Card\CardFileReader;
 use App\CardTrader\CardTraderException;
 use App\CardTrader\PokemonCatalog;
+use App\Mapping\VariantMatcher;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -20,9 +21,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'map-cards', description: 'Map a folder of *.card.json files (and their variants) to CardTrader blueprint IDs')]
 class MapCardsCommand extends Command
 {
-    /** Variant types that live in a sibling expansion named "<main name> - <type>". */
-    private const SIBLING_TYPES = ['Poké Ball Reverse Holo', 'Master Ball Reverse Holo'];
-
     public function __construct(
         private readonly PokemonCatalog $catalog,
         private readonly CardFileReader $cardReader = new CardFileReader(),
@@ -67,26 +65,16 @@ class MapCardsCommand extends Command
         }
 
         try {
-            $expansions = $this->resolveExpansions($mainExpansionId);
+            $expansions = $this->catalog->expansionWithSiblings($mainExpansionId);
             if ($expansions === null) {
                 $io->error("Unknown Pokémon expansion ID {$mainExpansionId}.");
 
                 return Command::FAILURE;
             }
 
-            // $blueprints: the one single per collector number; $ambiguous: numbers shared by several singles.
-            $blueprints = [];
-            $ambiguous = [];
+            $singlesByNumber = [];
             foreach ($expansions as $key => $expansionId) {
-                $blueprints[$key] = [];
-                $ambiguous[$key] = [];
-                foreach ($expansionId === null ? [] : $this->catalog->singlesByNumber($expansionId) as $number => $group) {
-                    if (count($group) === 1) {
-                        $blueprints[$key][$number] = $group[0];
-                    } else {
-                        $ambiguous[$key][$number] = array_map(static fn (array $b) => (int) $b['id'], $group);
-                    }
-                }
+                $singlesByNumber[$key] = $expansionId === null ? [] : $this->catalog->singlesByNumber($expansionId);
             }
         } catch (CardTraderException $e) {
             $io->error($e->getMessage());
@@ -94,37 +82,33 @@ class MapCardsCommand extends Command
             return Command::FAILURE;
         }
 
-        foreach (self::SIBLING_TYPES as $type) {
+        foreach (PokemonCatalog::SIBLING_TYPES as $type) {
             if ($expansions[$type] === null) {
                 $io->note("No \"{$type}\" expansion found; those variants will be unmatched.");
             }
         }
+
+        $matcher = new VariantMatcher($expansions, $singlesByNumber);
 
         $mapping = [];
         $unmatched = [];
         $matchedCount = 0;
 
         foreach ($cards as $card) {
-            $number = $card->collectorNumber();
-            $base = $blueprints['main'][$number] ?? null;
+            $match = $matcher->match($card);
 
-            foreach ($ambiguous as $key => $shared) {
-                if (isset($shared[$number])) {
-                    $io->warning("#{$number}: " . self::sharedBy($shared[$number], (int) $expansions[$key]) . '; those variants are left unmatched.');
-                }
-            }
-
-            if ($base !== null && strcasecmp((string) $base['name'], $card->name) !== 0) {
-                $io->warning("#{$number}: local name \"{$card->name}\" differs from CardTrader \"{$base['name']}\" (blueprint {$base['id']}).");
+            foreach ($match->warnings as $warning) {
+                $io->warning($warning);
             }
 
             $variants = [];
-            foreach ($card->variants as $variant) {
-                $result = $this->mapVariant($variant->type, $number, $base, $blueprints, $ambiguous, $expansions);
-                $variants[] = ['variant_id' => $variant->id, 'type' => $variant->type, ...$result];
+            foreach ($match->variants as $result) {
+                $variants[] = $result->blueprintId === null
+                    ? ['variant_id' => $result->variant->id, 'type' => $result->variant->type, 'blueprint_id' => null, 'reason' => $result->reason]
+                    : ['variant_id' => $result->variant->id, 'type' => $result->variant->type, 'blueprint_id' => $result->blueprintId, 'expansion_id' => $result->expansionId, 'reverse' => $result->reverse];
 
-                if ($result['blueprint_id'] === null) {
-                    $unmatched[] = [$card->number, $card->name, $variant->id, $variant->type, $result['reason']];
+                if ($result->blueprintId === null) {
+                    $unmatched[] = [$card->number, $card->name, $result->variant->id, $result->variant->type, $result->reason];
                 } else {
                     ++$matchedCount;
                 }
@@ -134,7 +118,7 @@ class MapCardsCommand extends Command
                 'card_id' => $card->id,
                 'number' => $card->number,
                 'name' => $card->name,
-                'blueprint_id' => $base['id'] ?? null,
+                'blueprint_id' => $match->blueprintId,
                 'variants' => $variants,
             ];
         }
@@ -161,80 +145,6 @@ class MapCardsCommand extends Command
         }
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * @param array<string, array<string, array<string, mixed>>> $blueprints
-     * @param array<string, array<string, list<int>>> $ambiguous
-     * @param array<string, int|null> $expansions
-     * @param array<string, mixed>|null $base
-     * @return array{blueprint_id: int, expansion_id: int, reverse: bool}|array{blueprint_id: null, reason: string}
-     */
-    private function mapVariant(string $type, string $number, ?array $base, array $blueprints, array $ambiguous, array $expansions): array
-    {
-        if (in_array($type, self::SIBLING_TYPES, true)) {
-            $blueprint = $blueprints[$type][$number] ?? null;
-            if ($blueprint === null) {
-                return ['blueprint_id' => null, 'reason' => match (true) {
-                    $expansions[$type] === null => "no {$type} expansion",
-                    isset($ambiguous[$type][$number]) => self::sharedBy($ambiguous[$type][$number], $expansions[$type]),
-                    default => "#{$number} not in expansion {$expansions[$type]}",
-                }];
-            }
-
-            return ['blueprint_id' => (int) $blueprint['id'], 'expansion_id' => (int) $expansions[$type], 'reverse' => false];
-        }
-
-        $reverse = match ($type) {
-            'Normal', 'Normal Holo' => false,
-            'Reverse Holo' => true,
-            default => null,
-        };
-
-        if ($reverse === null) {
-            return ['blueprint_id' => null, 'reason' => 'no mapping rule for this variant type'];
-        }
-
-        if ($base === null) {
-            return ['blueprint_id' => null, 'reason' => isset($ambiguous['main'][$number])
-                ? self::sharedBy($ambiguous['main'][$number], (int) $expansions['main'])
-                : "#{$number} not in expansion {$expansions['main']}"];
-        }
-
-        if ($reverse && !self::supportsReverse($base)) {
-            return ['blueprint_id' => null, 'reason' => "blueprint {$base['id']} has no reverse option"];
-        }
-
-        return ['blueprint_id' => (int) $base['id'], 'expansion_id' => (int) $expansions['main'], 'reverse' => $reverse];
-    }
-
-    /**
-     * The main expansion plus its Poké Ball / Master Ball siblings (null when CardTrader has none),
-     * or null when the main expansion ID is unknown.
-     *
-     * @return array<string, int|null>|null
-     */
-    private function resolveExpansions(int $mainId): ?array
-    {
-        $byName = [];
-        $mainName = null;
-        foreach ($this->catalog->expansions() as $expansion) {
-            $byName[(string) $expansion['name']] = (int) $expansion['id'];
-            if ((int) $expansion['id'] === $mainId) {
-                $mainName = (string) $expansion['name'];
-            }
-        }
-
-        if ($mainName === null) {
-            return null;
-        }
-
-        $resolved = ['main' => $mainId];
-        foreach (self::SIBLING_TYPES as $type) {
-            $resolved[$type] = $byName["{$mainName} - {$type}"] ?? null;
-        }
-
-        return $resolved;
     }
 
     /**
@@ -269,14 +179,6 @@ class MapCardsCommand extends Command
     }
 
     /**
-     * @param list<int> $blueprintIds
-     */
-    private static function sharedBy(array $blueprintIds, int $expansionId): string
-    {
-        return 'collector number shared by blueprints ' . implode(', ', $blueprintIds) . " in expansion {$expansionId}";
-    }
-
-    /**
      * "001" → "1", so --number 1 and --number 001 select the same card.
      */
     private static function withoutLeadingZeros(string $number): string
@@ -284,19 +186,5 @@ class MapCardsCommand extends Command
         $trimmed = ltrim(trim($number), '0');
 
         return $trimmed === '' ? '0' : $trimmed;
-    }
-
-    /**
-     * @param array<string, mixed> $blueprint
-     */
-    private static function supportsReverse(array $blueprint): bool
-    {
-        foreach ($blueprint['editable_properties'] ?? [] as $property) {
-            if (($property['name'] ?? null) === 'pokemon_reverse') {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

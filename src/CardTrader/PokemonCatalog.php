@@ -12,6 +12,9 @@ class PokemonCatalog
     public const GAME_ID = 5;
     public const SINGLES_CATEGORY_ID = 73;
 
+    /** Variant types that live in a sibling expansion named "<main name> - <type>". */
+    public const SIBLING_TYPES = ['Poké Ball Reverse Holo', 'Master Ball Reverse Holo'];
+
     public function __construct(private readonly Client $client)
     {
     }
@@ -67,5 +70,35 @@ class PokemonCatalog
         }
 
         return $indexed;
+    }
+
+    /**
+     * The main expansion plus its sibling expansions named "<main name> - <type>" (one entry per
+     * SIBLING_TYPES, null when CardTrader has no such expansion), or null when the main expansion
+     * ID is unknown.
+     *
+     * @return array<string, int|null>|null
+     */
+    public function expansionWithSiblings(int $mainId): ?array
+    {
+        $byName = [];
+        $mainName = null;
+        foreach ($this->expansions() as $expansion) {
+            $byName[(string) $expansion['name']] = (int) $expansion['id'];
+            if ((int) $expansion['id'] === $mainId) {
+                $mainName = (string) $expansion['name'];
+            }
+        }
+
+        if ($mainName === null) {
+            return null;
+        }
+
+        $resolved = ['main' => $mainId];
+        foreach (self::SIBLING_TYPES as $type) {
+            $resolved[$type] = $byName["{$mainName} - {$type}"] ?? null;
+        }
+
+        return $resolved;
     }
 }

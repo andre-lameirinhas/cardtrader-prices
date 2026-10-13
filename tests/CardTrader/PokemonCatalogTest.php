@@ -70,6 +70,44 @@ class PokemonCatalogTest extends TestCase
         $this->assertSame([342359, 342360], array_column($singles['087'], 'id'));
     }
 
+    /**
+     * @param list<int> $siblingIds
+     */
+    private function clientWithExpansions(array $siblingIds = [4266, 4263]): Client
+    {
+        $names = [4266 => 'Black Bolt - Poké Ball Reverse Holo', 4263 => 'Black Bolt - Master Ball Reverse Holo'];
+        $expansions = [['id' => 4195, 'game_id' => 5, 'name' => 'Black Bolt']];
+        foreach ($siblingIds as $id) {
+            $expansions[] = ['id' => $id, 'game_id' => 5, 'name' => $names[$id]];
+        }
+
+        $client = $this->createMock(Client::class);
+        $client->method('getExpansions')->willReturn($expansions);
+
+        return $client;
+    }
+
+    public function testExpansionWithSiblingsFindsBothSiblingsByName(): void
+    {
+        $resolved = (new PokemonCatalog($this->clientWithExpansions()))->expansionWithSiblings(4195);
+
+        $this->assertSame(['main' => 4195, 'Poké Ball Reverse Holo' => 4266, 'Master Ball Reverse Holo' => 4263], $resolved);
+    }
+
+    public function testExpansionWithSiblingsLeavesAMissingSiblingAsNull(): void
+    {
+        $resolved = (new PokemonCatalog($this->clientWithExpansions([4263])))->expansionWithSiblings(4195);
+
+        $this->assertNotNull($resolved);
+        $this->assertNull($resolved['Poké Ball Reverse Holo']);
+        $this->assertSame(4263, $resolved['Master Ball Reverse Holo']);
+    }
+
+    public function testExpansionWithSiblingsReturnsNullForUnknownMainId(): void
+    {
+        $this->assertNull((new PokemonCatalog($this->clientWithExpansions()))->expansionWithSiblings(9999));
+    }
+
     public function testClientErrorsPropagate(): void
     {
         $client = $this->createMock(Client::class);
